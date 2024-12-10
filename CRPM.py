@@ -5,7 +5,7 @@ import pandas as pd
 
 # Database Class
 class Database:
-    def __init__(self, db_name="crpm_system"):
+    def __init__(self, db_name="crpm"):
         self.db_name = db_name
         self.conn = None
         self.cursor = None
@@ -148,9 +148,10 @@ class Customer:
         params.append(customer_id)
         self.db.execute_query(query, tuple(params))
 
-    def delete_customer(self, customer_id):
+    def deactivate_customer(self, customer_id):
         query = "UPDATE Customers SET Status = 0 WHERE CustomerID = %s"
         self.db.execute_query(query, (customer_id,))
+
 
     def record_purchase(self, customer_id, product_id, quantity):
         product = self.db.fetch_one("SELECT Price, StockQuantity FROM Products WHERE ProductID = %s", (product_id,))
@@ -211,12 +212,16 @@ customer_manager = Customer(db)
 product_manager = Product(db)
 
 st.title("Customer Relationship and Product Management System")
-
+st.sidebar.image(
+    "https://img.freepik.com/premium-vector/fashion-clothing-store-women-template-hand-drawn-illustration-with-shopping-cloth-dresses_2175-7311.jpg?w=2000", 
+    caption="Welcome to Fashion Clothing", 
+    use_column_width=True
+)
 menu = st.sidebar.radio("Navigation", ["Customer Management", "Product Management", "Customer Purchases", "Analytics and Reports"])
 
 if menu == "Customer Management":
     st.header("Customer Management")
-    option = st.radio("Choose an option", ["Add Customer", "View Customers", "Update Customer", "Delete Customer"])
+    option = st.radio("Choose an option", ["Add Customer", "View Customers", "Update Customer", "Deactivate Customer"])
 
     if option == "Add Customer":
         name = st.text_input("Name")
@@ -234,7 +239,17 @@ if menu == "Customer Management":
 
     elif option == "View Customers":
         customers = customer_manager.view_customers()
-        st.write(customers)
+    
+    # Convert the customer list into a DataFrame
+        columns = ["Customer ID", "Name", "Email", "Phone", "Gender", "Age", 
+               "Country", "Preferred Payment Method", "Purchase Frequency", 
+               "Subscription Plan", "Is Active"]
+    
+    # Convert the nested list into a DataFrame
+        customers_df = pd.DataFrame(customers, columns=columns)
+    
+    # Display the DataFrame as a table
+        st.dataframe(customers_df)
 
     elif option == "Update Customer":
         customer_id = st.number_input("Customer ID", min_value=1)
@@ -256,12 +271,11 @@ if menu == "Customer Management":
             else:
                 st.warning("Customer not found")
 
-    elif option == "Delete Customer":
-        customer_id = st.number_input("Customer ID to delete", min_value=1)
-        if st.button("Delete Customer"):
-            customer_manager.delete_customer(customer_id)
-            st.success("Customer deleted successfully")
-
+    elif option == "Deactivate Customer":
+        customer_id = st.number_input("Customer ID to deactivate", min_value=1)
+        if st.button("Deactivate Customer"):
+            customer_manager.deactivate_customer(customer_id)
+            st.success("Customer deactivated successfully")
 elif menu == "Product Management":
     st.header("Product Management")
     option = st.radio("Choose an option", ["Add Product", "View Products", "Update Product", "Delete Product"])
@@ -274,9 +288,23 @@ elif menu == "Product Management":
             product_manager.add_product(name, price, stock_quantity)
             st.success("Product added successfully")
 
+    
+
     elif option == "View Products":
         products = product_manager.view_products()
-        st.write(products)
+        
+        # Define column names for the products table
+        columns = ["Product ID", "Product Name", "Price", "Stock Quantity", "Is Available"]
+        
+        # Convert the nested list into a DataFrame
+        products_df = pd.DataFrame(products, columns=columns)
+        
+        # Convert the Price column from Decimal to float
+        products_df['Price'] = products_df['Price'].apply(lambda x: float(str(x).replace("Decimal('", "").replace("')", "")))
+        
+        # Display the DataFrame as a table
+        st.dataframe(products_df)
+
 
     elif option == "Update Product":
         product_id = st.number_input("Product ID", min_value=1)
@@ -284,7 +312,8 @@ elif menu == "Product Management":
             product = product_manager.db.fetch_one("SELECT * FROM Products WHERE ProductID = %s", (product_id,))
             if product:
                 name = st.text_input("Name", value=product[1])
-                price = st.number_input("Price", min_value=0.0, value=product[2])
+                price = st.number_input("Price", min_value=0.0, value=float(product[2]))
+
                 stock_quantity = st.number_input("Stock Quantity", min_value=0, value=product[3])
                 if st.button("Update Product"):
                     product_manager.update_product(product_id, name, price, stock_quantity)
@@ -359,7 +388,7 @@ elif menu == "Analytics and Reports":
         stock_df = pd.DataFrame(stock_updates, columns=["ProductID", "ProductName", "StockQuantity", "SoldQuantity"])
         stock_df['UpdatedStock'] = stock_df['StockQuantity'] - stock_df['SoldQuantity']
         
-        st.write(f"Total Revenue Generated: ${total_revenue:.2f}")
+        st.write(f"Total Revenue Generated: Rs.{total_revenue:.2f}")
         st.write(f"Total Products Sold: {total_products_sold}")
         st.write("Stock Updates:")
         st.dataframe(stock_df)
